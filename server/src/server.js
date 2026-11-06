@@ -19,13 +19,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
   'http://localhost:3000'
 ];
 
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
   origin: (origin, callback) => {
-    callback(null, true);
+    // Allow requests without Origin header (e.g. mobile apps, curl, same-origin/server-to-server)
+    if (!origin) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true
 }));
@@ -61,8 +72,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[NepalChronicle Server] Running on http://localhost:${PORT}`);
-});
+// Start the server if run directly (local development/standalone), but export for Vercel Serverless/Services runtime
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[NepalChronicle Server] Running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
