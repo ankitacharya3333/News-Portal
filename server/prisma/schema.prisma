@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// EXISTING MODELS IN SHARED DB (PRESERVED INTACT SO NOTHING BREAKS)
+// -------------------------------------------------------------
+
+model User {
+  id                String        @id @default(uuid())
+  name              String
+  email             String        @unique
+  passwordHash      String
+  role              Role          @default(CUSTOMER)
+  company           String?
+  phone             String?
+  accountStatus     UserStatus    @default(ACTIVE)
+  resetToken        String?       @unique
+  resetTokenExpires DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  Appointment       Appointment[]
+  Inquiry           Inquiry[]
+
+  // Nepal Chronicle Relations
+  newsArticles      NewsArticle[]
+  newsComments      NewsComment[]
+  newsBookmarks     NewsBookmark[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Inquiry {
+  id                String              @id @default(uuid())
+  ticketNumber      String              @unique
+  name              String
+  email             String
+  phone             String?
+  organization      String?
+  subject           String
+  message           String
+  inquiryType       String              @default("General Advisory")
+  status            InquiryStatus       @default(NEW)
+  userId            String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  EmailNotification EmailNotification[]
+  User              User?               @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([email])
+}
+
+model Appointment {
+  id                String              @id @default(uuid())
+  referenceNumber   String              @unique
+  customerName      String
+  email             String
+  phone             String?
+  organization      String?
+  selectedService   String
+  appointmentDate   String
+  appointmentTime   String
+  meetingType       String              @default("Video Conference (Teams/Zoom)")
+  message           String?
+  bookingStatus     AppointmentStatus   @default(PENDING)
+  notes             String?
+  customerId        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  User              User?               @relation(fields: [customerId], references: [id])
+  EmailNotification EmailNotification[]
+
+  @@unique([appointmentDate, appointmentTime, bookingStatus])
+  @@index([appointmentDate])
+  @@index([bookingStatus])
+  @@index([email])
+}
+
+model BlogPost {
+  id                String   @id
+  title             String
+  slug              String   @unique
+  summary           String
+  content           String
+  category          String
+  readTime          String   @default("6 min read")
+  authorName        String   @default("Marcus Vance")
+  authorRole        String   @default("Chief Systems Architect")
+  featuredImage     String?
+  publicationStatus String   @default("PUBLISHED")
+  publishedDate     DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+
+  @@index([publicationStatus])
+  @@index([slug])
+}
+
+model EmailNotification {
+  id                String         @id
+  notificationType  String
+  recipient         String
+  subject           String
+  deliveryStatus    DeliveryStatus @default(PENDING)
+  providerMessageId String?
+  errorMessage      String?
+  inquiryId         String?
+  appointmentId     String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  Appointment       Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  Inquiry           Inquiry?       @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryStatus])
+  @@index([recipient])
+}
+
+model Project {
+  id            String   @id
+  name          String
+  slug          String   @unique
+  category      String
+  timeline      String   @default("6-Month Program")
+  description   String
+  challenge     String?
+  approach      String?
+  outcomesJson  String?
+  tags          String[] @default([])
+  featuredImage String?
+  status        String   @default("ACTIVE")
+  published     Boolean  @default(true)
+  featured      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+
+  @@index([published])
+  @@index([slug])
+}
+
+model Service {
+  id               String   @id
+  name             String
+  slug             String   @unique
+  shortDescription String
+  description      String
+  category         String
+  capabilities     String[] @default([])
+  deliverables     String[] @default([])
+  leadTime         String   @default("6 to 12 weeks")
+  image            String?
+  status           String   @default("ACTIVE")
+  published        Boolean  @default(true)
+  featured         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+
+  @@index([published])
+  @@index([slug])
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum InquiryStatus {
+  NEW
+  IN_PROGRESS
+  CONTACTED
+  RESOLVED
+  ARCHIVED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+// -------------------------------------------------------------
+// THE NEPAL CHRONICLE DIGITAL NEWS PORTAL MODELS
+// -------------------------------------------------------------
+
+model NewsCategory {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  nepaliName  String?
+  slug        String        @unique
+  description String?
+  colorCode   String?
+  order       Int           @default(0)
+  articles    NewsArticle[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([slug])
+}
+
+model NewsArticle {
+  id             String        @id @default(uuid())
+  title          String
+  nepaliTitle    String?
+  slug           String        @unique
+  summary        String
+  content        String
+  featuredImage  String
+  imageCaption   String?
+  imageSource    String?
+  status         String        @default("PUBLISHED") // "DRAFT" | "PUBLISHED"
+  isBreaking     Boolean       @default(false)
+  isFeatured     Boolean       @default(false)
+  isTrending     Boolean       @default(false)
+  views          Int           @default(0)
+  readingTimeMin Int           @default(4)
+  publishedAt    DateTime      @default(now())
+  
+  // Syndicated News Wire attribution
+  isExternal     Boolean       @default(false)
+  sourceName     String?
+  sourceUrl      String?
+  sourceChecksum String?       @unique
+
+  categoryId     String
+  category       NewsCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  authorId       String?
+  author         User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  comments       NewsComment[]
+  bookmarks      NewsBookmark[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([slug])
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@index([isBreaking])
+  @@index([isFeatured])
+}
+
+model NewsComment {
+  id         String      @id @default(uuid())
+  articleId  String
+  article    NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestName  String?
+  guestEmail String?
+  content    String
+  isApproved Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+
+  @@index([articleId])
+}
+
+model NewsBookmark {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  articleId String
+  article   NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, articleId])
+}
+
+model NewsSubscriber {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  isActive     Boolean   @default(true)
+  subscribedAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+model NewsSyncLog {
+  id            String    @id @default(uuid())
+  providerName  String
+  feedUrl       String
+  status        String    // "SUCCESS" | "FAILED"
+  itemsImported Int       @default(0)
+  errorMessage  String?
+  syncedAt      DateTime  @default(now())
+}
